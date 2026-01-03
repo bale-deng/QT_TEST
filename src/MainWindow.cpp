@@ -53,7 +53,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_restartTimer, &QTimer::timeout, this, &MainWindow::attemptPythonRestart);
 
     setupUI();
-    setWindowTitle("Weather App - Qt + Python");
+    setWindowTitle("mdCoder");
     setWindowIcon(QIcon(":/icon/md_coder.ico"));
     
     // Restore window geometry and state
