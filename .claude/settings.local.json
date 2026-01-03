@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__serena__read_memory",
+      "mcp__serena__list_dir",
+      "mcp__serena__read_file",
+      "mcp__serena__list_memories",
+      "mcp__serena__activate_project",
+      "mcp__serena__replace_regex",
+      "mcp__serena__think_about_whether_you_are_done",
+      "Bash(where:*)",
+      "WebSearch",
+      "Bash(ldd:*)",
+      "Bash(cat:*)",
+      "Bash(taskkill:*)",
+      "mcp__serena__get_symbols_overview",
+      "mcp__serena__insert_after_symbol",
+      "Bash(tasklist:*)",
+      "Bash(cmake:*)",
+      "Bash(dir:*)",
+      "mcp__serena__create_text_file",
+      "mcp__serena__write_memory",
+      "mcp__serena__replace_symbol_body",
+      "Bash(findstr:*)",
+      "mcp__serena__find_symbol",
+      "mcp__serena__find_file",
+      "mcp__serena__search_for_pattern",
+      "Bash(ls:*)",
+      "Bash(python run_timeout_test.py:*)",
+      "Bash(env:*)",
+      "Bash(./build_project.bat)"
+    ]
+  }
+}
