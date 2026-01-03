@@ -1,5 +1,6 @@
 #include "MainWindow.h"
 #include <QDebug>
+#include <QIcon>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTabWidget>
@@ -53,6 +54,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     setupUI();
     setWindowTitle("Weather App - Qt + Python");
+    setWindowIcon(QIcon(":/icon/md_coder.ico"));
     
     // Restore window geometry and state
     if (m_settings->contains("geometry")) {

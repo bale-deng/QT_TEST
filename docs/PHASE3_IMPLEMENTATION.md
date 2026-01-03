@@ -50,6 +50,7 @@ release/
 ├── WeatherApp.exe          (Main executable)
 ├── config.ini              (User settings)
 ├── python/                 (Backend scripts)
+├── icon/                   (Application icons)
 ├── python_runtime/         (Embedded Python - optional)
 ├── platforms/              (Qt plugins)
 └── *.dll                   (Qt & MinGW dependencies)

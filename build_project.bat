@@ -71,6 +71,7 @@ copy /Y "E:\CXX_PATH\mingw64\bin\libwinpthread-1.dll" "%RELEASE_DIR%\" >nul
 echo [6/7] Copying Python scripts and resources...
 REM Copy Python scripts
 xcopy /E /I /Y "python" "%RELEASE_DIR%\python\" >nul
+xcopy /E /I /Y "icon" "%RELEASE_DIR%\icon\" >nul
 if %ERRORLEVEL% NEQ 0 (
     echo ERROR: Failed to copy Python scripts!
     pause

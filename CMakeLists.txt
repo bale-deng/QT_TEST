@@ -25,6 +25,7 @@ set(SOURCES
     src/MarkdownEditor.cpp
     src/SettingsManager.cpp
     resources.qrc
+    app_icon.rc
 )
 
 # Header files
