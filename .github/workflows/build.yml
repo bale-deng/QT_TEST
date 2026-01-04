@@ -38,23 +38,28 @@ jobs:
     - name: Build Project
       shell: pwsh
       run: |
-        # Remove sh.exe from PATH
+        # 1. Clean PATH to remove sh.exe (MinGW conflict)
         $env:PATH = $env:PATH -split ';' | Where-Object { $_ -notlike '*\Git\usr\bin*' } -join ';'
         $mingwPath = "C:\msys64\mingw64\bin"
         $env:PATH = "$mingwPath;$env:PATH"
         
-        # Create and enter build directory
-        if (!(Test-Path build)) { New-Item -ItemType Directory -Path build }
-        cd build
+        # 2. Debug environment
+        Write-Host "Qt Path: $env:QT_PATH"
         
-        # Explicitly point to the CMakeLists.txt in the workspace root
-        cmake .. -G "Ninja" `
+        # 3. Build using absolute paths and explicit compiler locations
+        $srcDir = "${{ github.workspace }}"
+        $buildDir = "$srcDir/build"
+        
+        cmake -G "Ninja" `
+          -B "$buildDir" `
+          -S "$srcDir" `
           -DCMAKE_BUILD_TYPE=Release `
           -DCMAKE_PREFIX_PATH="$env:QT_PATH" `
           -DCMAKE_CXX_COMPILER="$mingwPath/g++.exe" `
-          -DCMAKE_C_COMPILER="$mingwPath/gcc.exe"
+          -DCMAKE_C_COMPILER="$mingwPath/gcc.exe" `
+          -DCMAKE_MAKE_PROGRAM="ninja.exe"
           
-        cmake --build . --parallel
+        cmake --build "$buildDir" --parallel
 
     - name: Package Release
       shell: pwsh
