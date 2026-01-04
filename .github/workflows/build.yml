@@ -19,37 +19,55 @@ jobs:
       with:
         python-version: '3.11'
 
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests>=2.31.0
+
     - name: Install Qt
       uses: jurplel/install-qt-action@v3
       with:
         version: '6.5.3'
-        host: 'windows'
-        target: 'desktop'
         arch: 'win64_mingw'
-        dir: '${{ github.workspace }}/qt'
+
+    - name: Set up MinGW
+      uses: egor-tensin/setup-gcc@v1
+      with:
+        version: 11.2.0
+        platform: x64
 
     - name: Build Project
       shell: pwsh
       run: |
         mkdir build
         cd build
-        cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
+        cmake .. -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR"
         cmake --build . --parallel
 
     - name: Package Release
       shell: pwsh
       run: |
-        # Create release structure
         mkdir release_pkg
+        
+        # Copy built executable
         cp build/bin/WeatherApp.exe release_pkg/
+        
+        # Run windeployqt to ensure all Qt dependencies are present
+        windeployqt --no-translations --no-system-d3d-compiler --no-opengl-sw --no-compiler-runtime release_pkg/WeatherApp.exe
+        
+        # Copy MinGW runtime DLLs
+        $gcc_bin = split-path (get-command g++).Source
+        cp "$gcc_bin\libgcc_s_seh-1.dll" release_pkg/
+        cp "$gcc_bin\libstdc++-6.dll" release_pkg/
+        cp "$gcc_bin\libwinpthread-1.dll" release_pkg/
+        
+        # Copy Python scripts
         cp -r python release_pkg/
         
-        # Deployment (using windeployqt provided by action)
-        windeployqt --no-compiler-runtime --no-translations release_pkg/WeatherApp.exe
-        
-        # Create dummy info file
+        # Additional metadata
         echo "Build Date: $(Get-Date)" > release_pkg/VERSION.txt
         echo "Version: 1.1.00" >> release_pkg/VERSION.txt
+        echo "GitHub Build: ${{ github.run_id }}" >> release_pkg/VERSION.txt
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4

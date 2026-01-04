@@ -479,11 +479,9 @@ void MarkdownEditorWidget::insertCodeBlock()
     
     // 插入带有语言标识的代码块
     QTextCursor cursor = m_editor->textCursor();
-    cursor.insertText("```" + language + "
-");
+    cursor.insertText("```" + language + "\n");
     int pos = cursor.position();
-    cursor.insertText("在此处输入代码
-```");
+    cursor.insertText("在此处输入代码\n```");
     cursor.setPosition(pos);
     cursor.movePosition(QTextCursor::Down, QTextCursor::MoveAnchor, 0);
     m_editor->setTextCursor(cursor);
@@ -494,10 +492,7 @@ void MarkdownEditorWidget::insertHorizontalRule()
 {
     QTextCursor cursor = m_editor->textCursor();
     cursor.movePosition(QTextCursor::StartOfLine);
-    cursor.insertText("
----
-
-");
+    cursor.insertText("\n---\n\n");
     m_editor->setTextCursor(cursor);
     m_editor->setFocus();
 }
@@ -534,16 +529,10 @@ void MarkdownEditorWidget::insertTable()
 {
     QTextCursor cursor = m_editor->textCursor();
     cursor.insertText(
-        "
-| 表头 1 | 表头 2 | 表头 3 |
-"
-        "|----------|----------|----------|
-"
-        "| 单元格 1 | 单元格 2 | 单元格 3 |
-"
-        "| 单元格 4 | 单元格 5 | 单元格 6 |
-
-"
+        "\n| 表头 1 | 表头 2 | 表头 3 |\n"
+        "|----------|----------|----------|\n"
+        "| 单元格 1 | 单元格 2 | 单元格 3 |\n"
+        "| 单元格 4 | 单元格 5 | 单元格 6 |\n\n"
     );
     m_editor->setTextCursor(cursor);
     m_editor->setFocus();
@@ -575,9 +564,7 @@ MarkdownEditor::MarkdownEditor(QWidget *parent)
         "}"
     );
     
-    setPlaceholderText("在此处开始输入您的 Markdown 笔记...
-
-提示：您可以直接从剪贴板粘贴图片！");
+    setPlaceholderText("在此处开始输入您的 Markdown 笔记...\n\n提示：您可以直接从剪贴板粘贴图片！");
 }
 
 MarkdownEditor::~MarkdownEditor()
