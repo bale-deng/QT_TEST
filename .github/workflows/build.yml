@@ -30,24 +30,33 @@ jobs:
         version: '6.5.3'
         arch: 'win64_mingw'
 
-    - name: Set up MSYS2
-      uses: msys2/setup-msys2@v2
+    - name: Set up Ninja
+      uses: ashutoshvarma/setup-ninja@master
       with:
-        msystem: MINGW64
-        install: >-
-          mingw-w64-x86_64-toolchain
-          mingw-w64-x86_64-ninja
-          mingw-w64-x86_64-cmake
+        version: 1.11.0
 
     - name: Build Project
-      shell: msys2 {0}
+      shell: pwsh
       run: |
-        mkdir -p build
+        # 核心修复：从 PATH 中移除包含 sh.exe 的路径，防止干扰 MinGW
+        $env:PATH = $env:PATH -split ';' | Where-Object { $_ -notlike '*\Git\usr\bin*' } -join ';'
+        
+        # 添加 MinGW 路径
+        $mingwPath = "C:\msys64\mingw64\bin"
+        $env:PATH = "$mingwPath;$env:PATH"
+        
+        # 验证工具
+        g++ --version
+        ninja --version
+        
+        mkdir build
         cd build
-        # 在 MSYS2 shell 中，环境变量和路径会自动处理
-        cmake .. -G "Ninja" \
-          -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_PREFIX_PATH="/c/hostedtoolcache/windows/Qt/6.5.3/mingw_64"
+        cmake .. -G "Ninja" `
+          -DCMAKE_BUILD_TYPE=Release `
+          -DCMAKE_PREFIX_PATH="$env:QT_PATH" `
+          -DCMAKE_CXX_COMPILER="$mingwPath/g++.exe" `
+          -DCMAKE_C_COMPILER="$mingwPath/gcc.exe"
+          
         cmake --build . --parallel
 
     - name: Package Release
@@ -56,14 +65,15 @@ jobs:
         mkdir release_pkg
         cp build/bin/WeatherApp.exe release_pkg/
         
-        # windeployqt 仍在 powershell 中运行比较方便
+        # 部署 Qt
         $qtBin = "$env:QT_PATH/bin"
         & "$qtBin/windeployqt.exe" --no-translations --no-system-d3d-compiler --no-opengl-sw --no-compiler-runtime release_pkg/WeatherApp.exe
         
-        # 从 MSYS2 路径拷贝运行时
-        cp "C:/msys64/mingw64/bin/libgcc_s_seh-1.dll" release_pkg/
-        cp "C:/msys64/mingw64/bin/libstdc++-6.dll" release_pkg/
-        cp "C:/msys64/mingw64/bin/libwinpthread-1.dll" release_pkg/
+        # 拷贝运行时
+        $mingwBin = "C:\msys64\mingw64\bin"
+        cp "$mingwBin/libgcc_s_seh-1.dll" release_pkg/
+        cp "$mingwBin/libstdc++-6.dll" release_pkg/
+        cp "$mingwBin/libwinpthread-1.dll" release_pkg/
         
         cp -r python release_pkg/
         echo "Build Date: $(Get-Date)" > release_pkg/VERSION.txt
