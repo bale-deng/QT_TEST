@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Weather Service Module
-Provides weather data retrieval functionality for the Qt application.
+天气服务模块
+为 Qt 应用程序提供天气数据检索功能。
 """
 
 import json
@@ -12,39 +12,39 @@ from typing import Dict, Optional
 
 class WeatherService:
     """
-    A service class to fetch and process weather data.
-    This is a prototype implementation that will be extended in later phases.
+    用于获取和处理天气数据的服务类。
+    这是在后续阶段将进行扩展的原型实现。
     """
 
     def __init__(self):
-        """Initialize the weather service."""
+        """初始化天气服务。"""
         self.api_key = None
         self.base_url = "https://api.openweathermap.org/data/2.5/weather"
 
     def set_api_key(self, api_key: str) -> None:
         """
-        Set the API key for weather service.
+        设置天气服务的 API 密钥。
 
-        Args:
-            api_key: The API key for OpenWeatherMap or similar service
+        参数：
+            api_key：OpenWeatherMap 或类似服务的 API 密钥
         """
         self.api_key = api_key
 
     def get_weather(self, city: str) -> Dict[str, any]:
         """
-        Get weather data for a specified city.
+        获取指定城市的天气数据。
 
-        Args:
-            city: The name of the city to get weather for
+        参数：
+            city：要获取天气的城市名称
 
-        Returns:
-            A dictionary containing weather information
+        返回：
+            包含天气信息的字典
         """
         try:
             import requests
             import urllib.parse
             
-            # Step 1: Get coordinates from city name using geocoding API
+            # 步骤 1：使用地理编码 API 从城市名称获取坐标
             geocode_url = f"https://geocoding-api.open-meteo.com/v1/search?name={urllib.parse.quote(city)}&count=1&language=en&format=json"
             
             response = requests.get(geocode_url, timeout=5)
@@ -52,14 +52,14 @@ class WeatherService:
             geo_data = response.json()
             
             if 'results' not in geo_data or len(geo_data['results']) == 0:
-                raise Exception(f"City '{city}' not found")
+                raise Exception(f"未找到城市 '{city}'")
             
             location = geo_data['results'][0]
             lat = location['latitude']
             lon = location['longitude']
             city_name = location['name']
             
-            # Step 2: Get weather data using coordinates
+            # 步骤 2：使用坐标获取天气数据
             weather_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,surface_pressure&timezone=auto"
             
             response = requests.get(weather_url, timeout=5)
@@ -67,20 +67,20 @@ class WeatherService:
             weather_data_raw = response.json()
             current = weather_data_raw['current']
             
-            # Map weather codes to descriptions
+            # 将天气代码映射到描述
             weather_codes = {
-                0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
-                45: "Foggy", 48: "Depositing rime fog",
-                51: "Light drizzle", 53: "Moderate drizzle", 55: "Dense drizzle",
-                61: "Slight rain", 63: "Moderate rain", 65: "Heavy rain",
-                71: "Slight snow", 73: "Moderate snow", 75: "Heavy snow",
-                77: "Snow grains", 80: "Slight rain showers", 81: "Moderate rain showers",
-                82: "Violent rain showers", 85: "Slight snow showers", 86: "Heavy snow showers",
-                95: "Thunderstorm", 96: "Thunderstorm with slight hail", 99: "Thunderstorm with heavy hail"
+                0: "晴朗", 1: "晴间多云", 2: "部分多云", 3: "阴天",
+                45: "雾", 48: "沉积雾",
+                51: "毛毛雨", 53: "中等毛毛雨", 55: "密集的毛毛雨",
+                61: "小雨", 63: "中雨", 65: "大雨",
+                71: "小雪", 73: "中雪", 75: "大雪",
+                77: "雪粒", 80: "小阵雨", 81: "中等阵雨",
+                82: "剧烈阵雨", 85: "小阵雪", 86: "大阵雪",
+                95: "雷暴", 96: "雷暴伴有小冰雹", 99: "雷暴伴有大冰雹"
             }
             
             weather_code = current.get('weather_code', 0)
-            description = weather_codes.get(weather_code, "Unknown")
+            description = weather_codes.get(weather_code, "未知")
             
             weather_data = {
                 "city": city_name,
@@ -95,12 +95,12 @@ class WeatherService:
             return weather_data
                 
         except Exception as e:
-            # Return error data if API call fails
+            # 如果 API 调用失败，返回错误数据
             return {
                 "city": city,
                 "temperature": 0,
                 "humidity": 0,
-                "description": f"Error: {str(e)}",
+                "description": f"错误：{str(e)}",
                 "wind_speed": 0,
                 "status": "error",
                 "error_message": str(e)
@@ -108,39 +108,39 @@ class WeatherService:
 
     def format_weather_data(self, weather_data: Dict[str, any]) -> str:
         """
-        Format weather data into a readable string.
+        将天气数据格式化为可读字符串。
 
-        Args:
-            weather_data: Dictionary containing weather information
+        参数：
+            weather_data：包含天气信息的字典
 
-        Returns:
-            Formatted string representation of weather data
+        返回：
+            天气数据的格式化字符串表示
         """
         if weather_data.get("status") != "success":
-            error_msg = weather_data.get("error_message", "Unknown error")
-            return f"Error: Unable to fetch weather data\n{error_msg}"
+            error_msg = weather_data.get("error_message", "未知错误")
+            return f"错误：无法获取天气数据\n{error_msg}"
 
         formatted = f"""
-Weather for {weather_data['city']}:
-Temperature: {weather_data['temperature']}°C
-Feels Like: {weather_data.get('feels_like', 'N/A')}°C
-Humidity: {weather_data['humidity']}%
-Conditions: {weather_data['description']}
-Wind Speed: {weather_data['wind_speed']} km/h
-Pressure: {weather_data.get('pressure', 'N/A')} mb
+{weather_data['city']} 天气：
+温度：{weather_data['temperature']}°C
+体感温度：{weather_data.get('feels_like', '暂无数据')}°C
+湿度：{weather_data['humidity']}%
+天气情况：{weather_data['description']}
+风速：{weather_data['wind_speed']} km/h
+气压：{weather_data.get('pressure', '暂无数据')} mb
 """
         return formatted.strip()
 
 
 def main():
     """
-    Main function for command line interface.
-    Outputs JSON to stdout for C++ integration.
+    命令行界面的主函数。
+    将 JSON 输出到 stdout 以便 C++ 集成。
     """
     if len(sys.argv) < 2:
         error_output = {
             "status": "error",
-            "error_message": "Usage: python weather_service.py <city_name>"
+            "error_message": "用法：python weather_service.py <城市名称>"
         }
         print(json.dumps(error_output))
         sys.exit(1)
@@ -149,7 +149,7 @@ def main():
     service = WeatherService()
     weather_data = service.get_weather(city)
 
-    # Output only JSON to stdout for C++ parsing
+    # 仅将 JSON 输出到 stdout 以供 C++ 解析
     print(json.dumps(weather_data))
 
 

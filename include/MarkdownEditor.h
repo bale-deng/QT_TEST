@@ -18,15 +18,15 @@
 #include <QLabel>
 
 /**
- * @brief Custom text editor with Markdown support and image paste functionality
+ * @brief 具有 Markdown 支持和图片粘贴功能的自定义文本编辑器
  * 
- * This editor extends QPlainTextEdit to provide:
- * - Image paste support from clipboard
- * - Automatic image saving to notes/images/ directory
- * - Markdown link insertion for pasted images
+ * 此编辑器扩展了 QPlainTextEdit 以提供：
+ * - 从剪贴板粘贴图片的支持
+ * - 图片自动保存到 notes/images/ 目录
+ * - 为粘贴的图片插入 Markdown 链接
  */
 /**
- * @brief Custom emoji picker dialog with grid layout
+ * @brief 具有网格布局的自定义表情选择器对话框
  */
 class EmojiPickerDialog : public QDialog
 {
@@ -37,8 +37,8 @@ public:
     ~EmojiPickerDialog() override;
 
     /**
-     * @brief Get the selected emoji
-     * @return The selected emoji string, or empty if cancelled
+     * @brief 获取选中的表情
+     * @return 选中的表情字符串，如果取消则为空
      */
     QString selectedEmoji() const;
 
@@ -55,7 +55,7 @@ private:
 };
 
 /**
- * @brief Container widget for markdown editor with toolbar
+ * @brief 带有工具栏的 Markdown 编辑器容器部件
  */
 class MarkdownEditorWidget : public QWidget
 {
@@ -66,7 +66,7 @@ public:
     ~MarkdownEditorWidget() override;
 
     /**
-     * @brief Get the underlying text editor
+     * @brief 获取底层的文本编辑器
      */
     QPlainTextEdit* editor() const;
 
@@ -95,7 +95,7 @@ private:
 };
 
 /**
- * @brief Custom text editor with Markdown support and image paste functionality
+ * @brief 具有 Markdown 支持和图片粘贴功能的自定义文本编辑器
  */
 class MarkdownEditor : public QPlainTextEdit
 {
@@ -106,52 +106,52 @@ public:
     ~MarkdownEditor() override;
 
     /**
-     * @brief Set the directory where images will be saved
-     * @param path Absolute or relative path to the images directory
+     * @brief 设置图片保存的目录
+     * @param path 图片目录的绝对或相对路径
      */
     void setImageSaveDirectory(const QString &path);
 
     /**
-     * @brief Get the current image save directory
-     * @return Path to the images directory
+     * @brief 获取当前的图片保存目录
+     * @return 图片目录的路径
      */
     QString imageSaveDirectory() const;
 
 protected:
     /**
-     * @brief Check if the MIME data can be inserted
-     * @param source The MIME data to check
-     * @return true if the data can be inserted
+     * @brief 检查 MIME 数据是否可以插入
+     * @param source 要检查的 MIME 数据
+     * @return 如果数据可以插入则返回 true
      */
     bool canInsertFromMimeData(const QMimeData *source) const override;
 
     /**
-     * @brief Insert data from MIME source (handles image paste)
-     * @param source The MIME data to insert
+     * @brief 从 MIME 源插入数据（处理图片粘贴）
+     * @param source 要插入的 MIME 数据
      */
     void insertFromMimeData(const QMimeData *source) override;
 
 private:
     /**
-     * @brief Save an image to disk and return the file path
-     * @param image The image to save
-     * @return Relative path to the saved image, or empty string on failure
+     * @brief 将图片保存到磁盘并返回文件路径
+     * @param image 要保存的图片
+     * @return 保存图片的相对路径，失败时返回空字符串
      */
     QString saveImage(const QImage &image);
 
     /**
-     * @brief Generate a unique filename for an image
-     * @return Filename in format: img_timestamp_hash.png
+     * @brief 为图片生成唯一文件名
+     * @return 格式为：img_时间戳_哈希.png 的文件名
      */
     QString generateImageFilename(const QImage &image) const;
 
     /**
-     * @brief Ensure the image save directory exists
-     * @return true if directory exists or was created successfully
+     * @brief 确保图片保存目录存在
+     * @return 如果目录存在或成功创建则返回 true
      */
     bool ensureImageDirectoryExists();
 
-    QString m_imageSaveDir;  ///< Directory where images are saved
+    QString m_imageSaveDir;  ///< 图片保存的目录
 };
 
 #endif // MARKDOWNEDITOR_H

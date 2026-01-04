@@ -3,7 +3,7 @@
 
 SettingsManager::SettingsManager()
 {
-    // Create settings file in application directory
+    // 在应用程序目录下创建设置文件
     QString settingsPath = QDir(QCoreApplication::applicationDirPath()).filePath("config.ini");
     m_settings = new QSettings(settingsPath, QSettings::IniFormat);
 }
@@ -52,7 +52,7 @@ void SettingsManager::sync()
     m_settings->sync();
 }
 
-// Convenience methods
+// 便捷方法
 QString SettingsManager::getTheme() const
 {
     return getValue("theme", "dark").toString();

@@ -8,59 +8,59 @@
 #include <QMutex>
 
 /**
- * @brief Singleton class for managing application settings
+ * @brief 管理应用程序设置的单例类
  * 
- * This class provides centralized access to application configuration
- * using QSettings with INI format. It ensures thread-safe access and
- * provides convenient methods for common settings operations.
+ * 此类提供对应用程序配置的集中访问，
+ * 使用 INI 格式的 QSettings。它确保线程安全访问，
+ * 并为常见的设置操作提供便捷方法。
  */
 class SettingsManager
 {
 public:
-    // Delete copy constructor and assignment operator
+    // 删除拷贝构造函数和赋值运算符
     SettingsManager(const SettingsManager&) = delete;
     SettingsManager& operator=(const SettingsManager&) = delete;
 
     /**
-     * @brief Get the singleton instance
-     * @return Reference to the SettingsManager instance
+     * @brief 获取单例实例
+     * @return SettingsManager 实例的引用
      */
     static SettingsManager& instance();
 
     /**
-     * @brief Get a setting value
-     * @param key Setting key
-     * @param defaultValue Default value if key doesn't exist
-     * @return Setting value
+     * @brief 获取设置值
+     * @param key 设置键
+     * @param defaultValue 如果键不存在的默认值
+     * @return 设置值
      */
     QVariant getValue(const QString& key, const QVariant& defaultValue = QVariant()) const;
 
     /**
-     * @brief Set a setting value
-     * @param key Setting key
-     * @param value Setting value
+     * @brief 设置设置值
+     * @param key 设置键
+     * @param value 设置值
      */
     void setValue(const QString& key, const QVariant& value);
 
     /**
-     * @brief Check if a setting exists
-     * @param key Setting key
-     * @return true if setting exists, false otherwise
+     * @brief 检查设置是否存在
+     * @param key 设置键
+     * @return 如果设置存在返回 true，否则返回 false
      */
     bool contains(const QString& key) const;
 
     /**
-     * @brief Remove a setting
-     * @param key Setting key
+     * @brief 移除设置
+     * @param key 设置键
      */
     void remove(const QString& key);
 
     /**
-     * @brief Sync settings to disk
+     * @brief 将设置同步到磁盘
      */
     void sync();
 
-    // Convenience methods for common settings
+    // 常见设置的便捷方法
     QString getTheme() const;
     void setTheme(const QString& theme);
 

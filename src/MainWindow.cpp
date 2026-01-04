@@ -55,16 +55,16 @@ MainWindow::MainWindow(QWidget *parent)
     , m_previewUpdateTimer(new QTimer(this))
     , m_zoomSettingsSaveTimer(new QTimer(this))
 {
-    // Initialize settings with config.ini in the application directory
+    // 使用应用程序目录下的 config.ini 初始化设置
     QString settingsPath = QDir(QCoreApplication::applicationDirPath()).filePath("config.ini");
     m_settings = new QSettings(settingsPath, QSettings::IniFormat, this);
 
-    // Configure process timeout (30 seconds)
+    // 配置进程超时（30 秒）
     m_processTimeout->setSingleShot(true);
     m_processTimeout->setInterval(30000);
     connect(m_processTimeout, &QTimer::timeout, this, &MainWindow::onProcessTimeout);
     
-    // Configure restart timer
+    // 配置重启定时器
     m_restartTimer->setSingleShot(true);
     connect(m_restartTimer, &QTimer::timeout, this, &MainWindow::attemptPythonRestart);
     
@@ -110,7 +110,7 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow()
 {
-    // Ensure process is terminated
+    // 确保进程已终止
     if (m_process && m_process->state() != QProcess::NotRunning) {
         m_process->terminate();
         if (!m_process->waitForFinished(3000)) {
@@ -118,22 +118,22 @@ MainWindow::~MainWindow()
             m_process->waitForFinished(1000);
         }
     }
-    // Qt handles cleanup automatically through parent-child relationship
+    // Qt 通过父子关系自动处理清理工作
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
-    // Check for unsaved changes
+    // 检查是否有未保存的更改
     if (!maybeSave()) {
         event->ignore();
         return;
     }
 
-    // Save window geometry and state
+    // 保存窗口几何形状和状态
     m_settings->setValue("geometry", saveGeometry());
     m_settings->setValue("windowState", saveState());
 
-    // Ensure process is terminated before closing
+    // 确保在关闭前进程已终止
     if (m_process && m_process->state() != QProcess::NotRunning) {
         m_process->terminate();
         if (!m_process->waitForFinished(3000)) {
@@ -1309,7 +1309,7 @@ void MainWindow::saveFileAs()
         return;
     }
 
-    // Check if file exists and confirm overwrite
+    // 检查文件是否存在并确认覆盖
     QFileInfo fileInfo(fileName);
     if (fileInfo.exists() && fileInfo.filePath() != m_currentFilePath) {
         QMessageBox::StandardButton reply = QMessageBox::question(
@@ -1325,27 +1325,27 @@ void MainWindow::saveFileAs()
         }
     }
 
-    // Save old path in case save fails
+    // 保存旧路径以防保存失败
     QString oldPath = m_currentFilePath;
     bool oldModified = m_isModified;
     
-    // Temporarily set new path for saveFile
+    // 暂时为 saveFile 设置新路径
     m_currentFilePath = fileName;
     
-    // Use QSaveFile for atomic writes
+    // 使用 QSaveFile 进行原子写入
     QSaveFile file(m_currentFilePath);
     if (!file.open(QFile::WriteOnly | QFile::Text)) {
         QMessageBox::warning(this, tr("Error"),
                            tr("Cannot write file %1:\n%2.")
                            .arg(QDir::toNativeSeparators(m_currentFilePath))
                            .arg(file.errorString()));
-        // Restore old path on failure
+        // 失败时恢复旧路径
         m_currentFilePath = oldPath;
         m_isModified = oldModified;
         return;
     }
 
-    // Encode content using original encoding
+    // 使用原始编码对内容进行编码
     QString content = m_markdownEditor->toPlainText();
     QStringEncoder encoder(m_currentEncoding);
     QByteArray encodedData = encoder(content);
@@ -1358,7 +1358,7 @@ void MainWindow::saveFileAs()
         encodedData = utf8Encoder(content);
     }
     
-    // Write BOM if present
+    // 如果存在 BOM，则写入
     if (!m_fileBOM.isEmpty()) {
         if (file.write(m_fileBOM) == -1) {
             QMessageBox::warning(this, tr("Error"),
@@ -1366,39 +1366,39 @@ void MainWindow::saveFileAs()
                                .arg(QDir::toNativeSeparators(m_currentFilePath))
                                .arg(file.errorString()));
             file.cancelWriting();
-            // Restore old path on failure
+            // 失败时恢复旧路径
             m_currentFilePath = oldPath;
             m_isModified = oldModified;
             return;
         }
     }
     
-    // Write data
+    // 写入数据
     if (file.write(encodedData) == -1) {
         QMessageBox::warning(this, tr("Error"),
                            tr("Cannot write file %1:\n%2.")
                            .arg(QDir::toNativeSeparators(m_currentFilePath))
                            .arg(file.errorString()));
         file.cancelWriting();
-        // Restore old path on failure
+        // 失败时恢复旧路径
         m_currentFilePath = oldPath;
         m_isModified = oldModified;
         return;
     }
     
-    // Commit the file (atomic operation)
+    // 提交文件（原子操作）
     if (!file.commit()) {
         QMessageBox::warning(this, tr("Error"),
                            tr("Cannot save file %1:\n%2.")
                            .arg(QDir::toNativeSeparators(m_currentFilePath))
                            .arg(file.errorString()));
-        // Restore old path on failure
+        // 失败时恢复旧路径
         m_currentFilePath = oldPath;
         m_isModified = oldModified;
         return;
     }
 
-    // Only update state after successful save
+    // 仅在成功保存后更新状态
     m_isModified = false;
     updateWindowTitle();
 }
@@ -1418,7 +1418,7 @@ bool MainWindow::maybeSave()
 
     if (ret == QMessageBox::Save) {
         saveFile();
-        return !m_isModified;  // Return true only if save succeeded
+        return !m_isModified;  // 仅在保存成功时返回 true
     } else if (ret == QMessageBox::Cancel) {
         return false;
     }
@@ -1446,59 +1446,59 @@ void MainWindow::updateWindowTitle()
     setWindowTitle(title);
 }
 
-// ========== Zoom Operations ==========
+// ========== 缩放操作 ==========
 
 void MainWindow::setZoom(double level)
 {
-    // Clamp zoom level to valid range
+    // 将缩放级别限制在有效范围内
     double newZoom = qBound(ZOOM_MIN, level, ZOOM_MAX);
     
-    // Early return if zoom hasn't changed (avoid redundant operations)
+    // 如果缩放级别未更改，则提早返回（避免冗余操作）
     if (qAbs(newZoom - m_currentZoom) < 0.001) {
         return;
     }
 
-    // Calculate the zoom change ratio
+    // 计算缩放变化比例
     double zoomChange = newZoom / m_currentZoom;
 
-    // Update current zoom
+    // 更新当前缩放
     m_currentZoom = newZoom;
 
-    // Save zoom level to settings (debounced)
+    // 将缩放级别保存到设置（防抖）
     m_zoomSettingsSaveTimer->start();
 
-    // Update zoom button text to show current percentage
+    // 更新缩放按钮文本以显示当前百分比
     if (m_zoomResetButton) {
         int percentage = qRound(m_currentZoom * 100);
         m_zoomResetButton->setText(QString("%1%").arg(percentage));
     }
 
-    // Apply zoom to editor by scaling font
+    // 通过缩放字体将缩放应用于编辑器
     QFont editorFont = m_markdownEditor->font();
-    int baseFontSize = 14;  // Base font size from stylesheet
+    int baseFontSize = 14;  // 来自样式表的基准字体大小
     editorFont.setPointSizeF(baseFontSize * m_currentZoom);
     m_markdownEditor->setFont(editorFont);
 
-    // Apply zoom to preview using QTextBrowser's built-in zoomIn/zoomOut
-    // QTextBrowser's zoom is multiplicative, so we apply the ratio
+    // 使用 QTextBrowser 内置的 zoomIn/zoomOut 将缩放应用于预览
+    // QTextBrowser 的缩放是乘法运算，因此我们应用比例
     if (zoomChange > 1.0) {
-        // Zoom in - calculate how many steps
+        // 放大 - 计算步骤
         double factor = zoomChange;
-        while (factor > 1.01) {  // Small threshold to avoid floating point issues
+        while (factor > 1.01) {  // 小阈值以避免浮点问题
             m_markdownPreview->zoomIn(1);
-            factor /= 1.1;  // Each zoomIn step is approximately 1.1x
+            factor /= 1.1;  // 每个 zoomIn 步长约为 1.1x
         }
     } else if (zoomChange < 1.0) {
-        // Zoom out - calculate how many steps
+        // 缩小 - 计算步骤
         double factor = zoomChange;
-        while (factor < 0.99) {  // Small threshold to avoid floating point issues
+        while (factor < 0.99) {  // 小阈值以避免浮点问题
             m_markdownPreview->zoomOut(1);
-            factor *= 1.1;  // Each zoomOut step is approximately 0.9x (1/1.1)
+            factor *= 1.1;  // 每个 zoomOut 步长约为 0.9x (1/1.1)
         }
     }
 
-    // Note: Preview zoom is already applied via zoomIn/zoomOut calls above
-    // No need to regenerate HTML during zoom operations
+    // 注意：预览缩放已通过上述 zoomIn/zoomOut 调用应用
+    // 缩放操作期间无需重新生成 HTML
 
     qDebug() << "Zoom level set to:" << m_currentZoom << "(" << qRound(m_currentZoom * 100) << "%)";
 }
@@ -1520,9 +1520,9 @@ void MainWindow::zoomReset()
 
 void MainWindow::wheelEvent(QWheelEvent *event)
 {
-    // Check if Ctrl key is pressed
+    // 检查 Ctrl 键是否按下
     if (event->modifiers() & Qt::ControlModifier) {
-        // Get the scroll delta
+        // 获取滚动增量
         int delta = event->angleDelta().y();
 
         if (delta > 0) {
@@ -1535,6 +1535,6 @@ void MainWindow::wheelEvent(QWheelEvent *event)
         return;
     }
 
-    // If Ctrl is not pressed, use default behavior
+    // 如果未按下 Ctrl，使用默认行为
     QMainWindow::wheelEvent(event);
 }

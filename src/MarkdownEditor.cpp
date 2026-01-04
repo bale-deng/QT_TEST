@@ -380,7 +380,7 @@ void MarkdownEditorWidget::setupToolbar()
     connect(imageAction, &QAction::triggered, this, &MarkdownEditorWidget::insertImage);
     m_toolbar->addAction(imageAction);
     
-    // Table
+    // 表格
     QAction *tableAction = new QAction("⊞ Table");
     tableAction->setToolTip("Insert Table (Ctrl+T)");
     tableAction->setShortcut(QKeySequence("Ctrl+T"));
@@ -389,7 +389,7 @@ void MarkdownEditorWidget::setupToolbar()
     
     m_toolbar->addSeparator();
     
-    // Emoji
+    // 表情
     QAction *emojiAction = new QAction("😀 Emoji", this);
     emojiAction->setToolTip("Insert Emoji (Ctrl+E)");
     emojiAction->setShortcut(QKeySequence("Ctrl+E"));
@@ -404,15 +404,15 @@ void MarkdownEditorWidget::insertFormatting(const QString &prefix, const QString
     QTextCursor cursor = m_editor->textCursor();
     
     if (cursor.hasSelection()) {
-        // Wrap selected text
+        // 包裹选中的文本
         QString selectedText = cursor.selectedText();
         cursor.insertText(prefix + selectedText + suffix);
     } else {
-        // Insert with placeholder
+        // 插入占位符
         QString text = placeholder.isEmpty() ? "text" : placeholder;
         cursor.insertText(prefix + text + suffix);
         
-        // Select the placeholder
+        // 选中占位符
         cursor.movePosition(QTextCursor::Left, QTextCursor::MoveAnchor, suffix.length() + text.length());
         cursor.movePosition(QTextCursor::Right, QTextCursor::KeepAnchor, text.length());
         m_editor->setTextCursor(cursor);
@@ -432,27 +432,27 @@ void MarkdownEditorWidget::insertHeading()
 
 void MarkdownEditorWidget::insertBold()
 {
-    insertFormatting("**", "**", "bold text");
+    insertFormatting("**", "**", "加粗文本");
 }
 
 void MarkdownEditorWidget::insertItalic()
 {
-    insertFormatting("*", "*", "italic text");
+    insertFormatting("*", "*", "斜体文本");
 }
 
 void MarkdownEditorWidget::insertStrikethrough()
 {
-    insertFormatting("~~", "~~", "strikethrough text");
+    insertFormatting("~~", "~~", "删除线文本");
 }
 
 void MarkdownEditorWidget::insertCode()
 {
-    insertFormatting("`", "`", "code");
+    insertFormatting("`", "`", "代码");
 }
 
 void MarkdownEditorWidget::insertCodeBlock()
 {
-    // List of popular programming languages
+    // 常用编程语言列表
     QStringList languages;
     languages << "python" << "cpp" << "c" << "java" << "javascript" 
               << "typescript" << "go" << "rust" << "php" << "ruby"
@@ -460,28 +460,30 @@ void MarkdownEditorWidget::insertCodeBlock()
               << "html" << "css" << "json" << "xml" << "yaml"
               << "markdown" << "plaintext";
     
-    // Show language selection dialog
+    // 显示语言选择对话框
     bool ok;
     QString language = QInputDialog::getItem(
         this,
-        "Select Language",
-        "Choose programming language for syntax highlighting:",
+        "选择语言",
+        "为语法高亮选择编程语言：",
         languages,
-        0,  // Default to python
-        true,  // Editable (user can type custom language)
+        0,  // 默认为 python
+        true,  // 可编辑（用户可以输入自定义语言）
         &ok
     );
     
     if (!ok) {
-        // User cancelled
+        // 用户取消
         return;
     }
     
-    // Insert code block with language identifier
+    // 插入带有语言标识的代码块
     QTextCursor cursor = m_editor->textCursor();
-    cursor.insertText("```" + language + "\n");
+    cursor.insertText("```" + language + "
+");
     int pos = cursor.position();
-    cursor.insertText("code here\n```");
+    cursor.insertText("在此处输入代码
+```");
     cursor.setPosition(pos);
     cursor.movePosition(QTextCursor::Down, QTextCursor::MoveAnchor, 0);
     m_editor->setTextCursor(cursor);
@@ -492,7 +494,10 @@ void MarkdownEditorWidget::insertHorizontalRule()
 {
     QTextCursor cursor = m_editor->textCursor();
     cursor.movePosition(QTextCursor::StartOfLine);
-    cursor.insertText("\n---\n\n");
+    cursor.insertText("
+---
+
+");
     m_editor->setTextCursor(cursor);
     m_editor->setFocus();
 }
@@ -517,37 +522,43 @@ void MarkdownEditorWidget::insertNumberedList()
 
 void MarkdownEditorWidget::insertLink()
 {
-    insertFormatting("[", "](url)", "link text");
+    insertFormatting("[", "](url)", "链接文本");
 }
 
 void MarkdownEditorWidget::insertImage()
 {
-    insertFormatting("![", "](image-url)", "alt text");
+    insertFormatting("![", "](image-url)", "替代文本");
 }
 
 void MarkdownEditorWidget::insertTable()
 {
     QTextCursor cursor = m_editor->textCursor();
     cursor.insertText(
-        "\n| Header 1 | Header 2 | Header 3 |\n"
-        "|----------|----------|----------|\n"
-        "| Cell 1   | Cell 2   | Cell 3   |\n"
-        "| Cell 4   | Cell 5   | Cell 6   |\n\n"
+        "
+| 表头 1 | 表头 2 | 表头 3 |
+"
+        "|----------|----------|----------|
+"
+        "| 单元格 1 | 单元格 2 | 单元格 3 |
+"
+        "| 单元格 4 | 单元格 5 | 单元格 6 |
+
+"
     );
     m_editor->setTextCursor(cursor);
     m_editor->setFocus();
 }
 
-// ========== MarkdownEditor Implementation ==========
+// ========== MarkdownEditor 实现 ==========
 
 MarkdownEditor::MarkdownEditor(QWidget *parent)
     : QPlainTextEdit(parent)
     , m_imageSaveDir("notes/images")
 {
-    // Set tab width to 2 spaces
+    // 设置制表符宽度为 2 个空格
     QFontMetrics metrics(font());
     setTabStopDistance(metrics.horizontalAdvance(' ') * 2);
-    // Set default styling for the editor
+    // 为编辑器设置默认样式
     setStyleSheet(
         "QPlainTextEdit {"
         "    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;"
@@ -564,12 +575,14 @@ MarkdownEditor::MarkdownEditor(QWidget *parent)
         "}"
     );
     
-    setPlaceholderText("Start typing your markdown notes here...\n\nTip: You can paste images directly from clipboard!");
+    setPlaceholderText("在此处开始输入您的 Markdown 笔记...
+
+提示：您可以直接从剪贴板粘贴图片！");
 }
 
 MarkdownEditor::~MarkdownEditor()
 {
-    // Qt handles cleanup automatically
+    // Qt 自动处理清理工作
 }
 
 void MarkdownEditor::setImageSaveDirectory(const QString &path)
@@ -584,66 +597,66 @@ QString MarkdownEditor::imageSaveDirectory() const
 
 bool MarkdownEditor::canInsertFromMimeData(const QMimeData *source) const
 {
-    // Accept if it has an image or if the base class can handle it
+    // 如果包含图片或基类可以处理，则接受
     return source->hasImage() || QPlainTextEdit::canInsertFromMimeData(source);
 }
 
 void MarkdownEditor::insertFromMimeData(const QMimeData *source)
 {
-    // Check if the MIME data contains an image
+    // 检查 MIME 数据是否包含图片
     if (source->hasImage()) {
         QImage image = qvariant_cast<QImage>(source->imageData());
         
         if (!image.isNull()) {
-            qDebug() << "Image pasted, size:" << image.size();
+            qDebug() << "图片已粘贴，大小：" << image.size();
             
-            // Save the image and get the relative path
+            // 保存图片并获取相对路径
             QString imagePath = saveImage(image);
             
             if (!imagePath.isEmpty()) {
-                // Insert Markdown image syntax at cursor position
+                // 在光标位置插入 Markdown 图片语法
                 QString markdownLink = QString("![Image](%1)").arg(imagePath);
                 QTextCursor cursor = textCursor();
                 cursor.insertText(markdownLink);
                 
-                qDebug() << "Inserted Markdown link:" << markdownLink;
+                qDebug() << "已插入 Markdown 链接：" << markdownLink;
             } else {
-                qWarning() << "Failed to save image";
-                // Insert error message
+                qWarning() << "无法保存图片";
+                // 插入错误信息
                 QTextCursor cursor = textCursor();
-                cursor.insertText("[Error: Failed to save image]");
+                cursor.insertText("[错误：无法保存图片]");
             }
             
             return;
         }
     }
     
-    // If not an image, use default behavior
+    // 如果不是图片，使用默认行为
     QPlainTextEdit::insertFromMimeData(source);
 }
 
 QString MarkdownEditor::saveImage(const QImage &image)
 {
-    // Define size limits (50MB max file size, 16K x 16K max dimensions)
+    // 定义大小限制（最大文件大小 50MB，最大尺寸 16K x 16K）
     const qint64 MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
-    const int MAX_DIMENSION = 16384; // 16K pixels
+    const int MAX_DIMENSION = 16384; // 16K 像素
 
-    // Check image dimensions
+    // 检查图片尺寸
     if (image.width() > MAX_DIMENSION || image.height() > MAX_DIMENSION) {
-        qWarning() << "Image too large:" << image.size() << "- max dimension is" << MAX_DIMENSION;
+        qWarning() << "图片太大：" << image.size() << " - 最大尺寸为" << MAX_DIMENSION;
         return QString();
     }
 
-    // Ensure the directory exists
+    // 确保目录存在
     if (!ensureImageDirectoryExists()) {
-        qWarning() << "Failed to create image directory:" << m_imageSaveDir;
+        qWarning() << "无法创建图片目录：" << m_imageSaveDir;
         return QString();
     }
 
-    // Generate unique filename using hash without re-encoding
+    // 使用哈希生成唯一文件名，不重新编码
     qint64 timestamp = QDateTime::currentMSecsSinceEpoch();
 
-    // Calculate hash directly from image bits to avoid double encoding
+    // 直接从图片位计算哈希以避免二次编码
     QCryptographicHash hash(QCryptographicHash::Md5);
     QByteArrayView imageView(reinterpret_cast<const char*>(image.constBits()),
                              image.sizeInBytes());
@@ -652,52 +665,52 @@ QString MarkdownEditor::saveImage(const QImage &image)
 
     QString filename = QString("img_%1_%2.png").arg(timestamp).arg(hashStr);
 
-    // Build full path
+    // 构建完整路径
     QDir appDir(QCoreApplication::applicationDirPath());
     QString fullPath = appDir.filePath(m_imageSaveDir + "/" + filename);
 
-    qDebug() << "Saving image to:" << fullPath;
+    qDebug() << "正在保存图片到：" << fullPath;
 
-    // Use QSaveFile for atomic write with rollback on failure
+    // 使用 QSaveFile 进行原子写入，失败时回滚
     QSaveFile saveFile(fullPath);
     if (!saveFile.open(QIODevice::WriteOnly)) {
-        qWarning() << "Failed to open file for writing:" << fullPath;
+        qWarning() << "无法打开文件进行写入：" << fullPath;
         return QString();
     }
 
-    // Save image to buffer first to check size
+    // 先将图片保存到缓冲区以检查大小
     QByteArray imageData;
     QBuffer buffer(&imageData);
     buffer.open(QIODevice::WriteOnly);
     if (!image.save(&buffer, "PNG")) {
-        qWarning() << "Failed to encode image to PNG";
+        qWarning() << "无法将图片编码为 PNG";
         saveFile.cancelWriting();
         return QString();
     }
 
-    // Check file size
+    // 检查文件大小
     if (imageData.size() > MAX_FILE_SIZE) {
-        qWarning() << "Image file too large:" << imageData.size() << "bytes - max is" << MAX_FILE_SIZE;
+        qWarning() << "图片文件太大：" << imageData.size() << "字节 - 最大限制为" << MAX_FILE_SIZE;
         saveFile.cancelWriting();
         return QString();
     }
 
-    // Write to file
+    // 写入文件
     if (saveFile.write(imageData) == -1) {
-        qWarning() << "Failed to write image data:" << saveFile.errorString();
+        qWarning() << "无法写入图片数据：" << saveFile.errorString();
         saveFile.cancelWriting();
         return QString();
     }
 
-    // Commit the file (atomic operation)
+    // 提交文件（原子操作）
     if (!saveFile.commit()) {
-        qWarning() << "Failed to commit file:" << saveFile.errorString();
+        qWarning() << "无法提交文件：" << saveFile.errorString();
         return QString();
     }
 
-    // Return relative path for Markdown link
+    // 返回用于 Markdown 链接的相对路径
     QString relativePath = m_imageSaveDir + "/" + filename;
-    qDebug() << "Image saved successfully, relative path:" << relativePath;
+    qDebug() << "图片保存成功，相对路径：" << relativePath;
     return relativePath;
 }
 
@@ -708,7 +721,7 @@ bool MarkdownEditor::ensureImageDirectoryExists()
     
     QDir imageDir(fullPath);
     if (!imageDir.exists()) {
-        qDebug() << "Creating image directory:" << fullPath;
+        qDebug() << "正在创建图片目录：" << fullPath;
         return appDir.mkpath(m_imageSaveDir);
     }
     
