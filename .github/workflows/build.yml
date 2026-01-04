@@ -33,23 +33,29 @@ jobs:
     - name: Set up MinGW
       shell: pwsh
       run: |
-        # Use the pre-installed MinGW64 in the MSYS2 directory on the runner
         echo "C:\msys64\mingw64\bin" >> $env:GITHUB_PATH
-        # Ensure Ninja is also in path (it's usually in CMake's bin or pre-installed)
         
+    - name: Install Ninja
+      run: choco install ninja
+
     - name: Verify Toolchain
       shell: pwsh
       run: |
         g++ --version
         ninja --version
         cmake --version
+        echo "QT_PATH: $env:QT_PATH"
 
     - name: Build Project
       shell: pwsh
       run: |
         mkdir build
         cd build
-        cmake .. -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR"
+        cmake .. -G "Ninja" `
+          -DCMAKE_BUILD_TYPE=Release `
+          -DCMAKE_CXX_COMPILER="C:/msys64/mingw64/bin/g++.exe" `
+          -DCMAKE_C_COMPILER="C:/msys64/mingw64/bin/gcc.exe" `
+          -DCMAKE_PREFIX_PATH="$env:QT_PATH"
         cmake --build . --parallel
 
     - name: Package Release
