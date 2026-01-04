@@ -30,35 +30,44 @@ jobs:
         version: '6.5.3'
         arch: 'win64_mingw'
 
-    - name: Set up MinGW
-      shell: pwsh
-      run: |
-        echo "C:\msys64\mingw64\bin" >> $env:GITHUB_PATH
-        
-    - name: Install Ninja
-      run: choco install ninja
-
-    - name: Verify Toolchain
-      shell: pwsh
-      run: |
-        g++ --version
-        ninja --version
-        cmake --version
-        echo "QT_PATH: $env:QT_PATH"
+    - name: Set up MSYS2
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: MINGW64
+        install: >-
+          mingw-w64-x86_64-toolchain
+          mingw-w64-x86_64-ninja
+          mingw-w64-x86_64-cmake
 
     - name: Build Project
-      shell: pwsh
+      shell: msys2 {0}
       run: |
-        mkdir build
+        mkdir -p build
         cd build
-        cmake .. -G "Ninja" `
-          -DCMAKE_BUILD_TYPE=Release `
-          -DCMAKE_CXX_COMPILER="C:/msys64/mingw64/bin/g++.exe" `
-          -DCMAKE_C_COMPILER="C:/msys64/mingw64/bin/gcc.exe" `
-          -DCMAKE_PREFIX_PATH="$env:QT_PATH"
+        # 在 MSYS2 shell 中，环境变量和路径会自动处理
+        cmake .. -G "Ninja" \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_PREFIX_PATH="/c/hostedtoolcache/windows/Qt/6.5.3/mingw_64"
         cmake --build . --parallel
 
     - name: Package Release
+      shell: pwsh
+      run: |
+        mkdir release_pkg
+        cp build/bin/WeatherApp.exe release_pkg/
+        
+        # windeployqt 仍在 powershell 中运行比较方便
+        $qtBin = "$env:QT_PATH/bin"
+        & "$qtBin/windeployqt.exe" --no-translations --no-system-d3d-compiler --no-opengl-sw --no-compiler-runtime release_pkg/WeatherApp.exe
+        
+        # 从 MSYS2 路径拷贝运行时
+        cp "C:/msys64/mingw64/bin/libgcc_s_seh-1.dll" release_pkg/
+        cp "C:/msys64/mingw64/bin/libstdc++-6.dll" release_pkg/
+        cp "C:/msys64/mingw64/bin/libwinpthread-1.dll" release_pkg/
+        
+        cp -r python release_pkg/
+        echo "Build Date: $(Get-Date)" > release_pkg/VERSION.txt
+        echo "Version: 1.1.00" >> release_pkg/VERSION.txt
       shell: pwsh
       run: |
         mkdir release_pkg
