@@ -64,42 +64,25 @@ jobs:
     - name: Package Release
       shell: pwsh
       run: |
-        mkdir release_pkg
+        if (!(Test-Path release_pkg)) { New-Item -ItemType Directory -Path release_pkg }
+        
+        # 1. Copy built executable
         cp build/bin/WeatherApp.exe release_pkg/
         
-        # 部署 Qt
+        # 2. Deploy Qt dependencies
         $qtBin = "$env:QT_PATH/bin"
         & "$qtBin/windeployqt.exe" --no-translations --no-system-d3d-compiler --no-opengl-sw --no-compiler-runtime release_pkg/WeatherApp.exe
         
-        # 拷贝运行时
+        # 3. Copy MinGW runtime DLLs
         $mingwBin = "C:\msys64\mingw64\bin"
         cp "$mingwBin/libgcc_s_seh-1.dll" release_pkg/
         cp "$mingwBin/libstdc++-6.dll" release_pkg/
         cp "$mingwBin/libwinpthread-1.dll" release_pkg/
         
-        cp -r python release_pkg/
-        echo "Build Date: $(Get-Date)" > release_pkg/VERSION.txt
-        echo "Version: 1.1.00" >> release_pkg/VERSION.txt
-      shell: pwsh
-      run: |
-        mkdir release_pkg
-        
-        # Copy built executable
-        cp build/bin/WeatherApp.exe release_pkg/
-        
-        # Run windeployqt to ensure all Qt dependencies are present
-        windeployqt --no-translations --no-system-d3d-compiler --no-opengl-sw --no-compiler-runtime release_pkg/WeatherApp.exe
-        
-        # Copy MinGW runtime DLLs
-        $gcc_bin = split-path (get-command g++).Source
-        cp "$gcc_bin\libgcc_s_seh-1.dll" release_pkg/
-        cp "$gcc_bin\libstdc++-6.dll" release_pkg/
-        cp "$gcc_bin\libwinpthread-1.dll" release_pkg/
-        
-        # Copy Python scripts
+        # 4. Copy Python scripts
         cp -r python release_pkg/
         
-        # Additional metadata
+        # 5. Add metadata
         echo "Build Date: $(Get-Date)" > release_pkg/VERSION.txt
         echo "Version: 1.1.00" >> release_pkg/VERSION.txt
         echo "GitHub Build: ${{ github.run_id }}" >> release_pkg/VERSION.txt
