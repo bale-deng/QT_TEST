@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(WeatherApp VERSION 1.0.0 LANGUAGES CXX)
+project(WeatherApp VERSION 3.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -62,3 +62,23 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         $<TARGET_FILE_DIR:${PROJECT_NAME}>/python
     COMMENT "Copying Python scripts to executable directory"
 )
+
+# Deploy Qt dependencies on Windows
+if(WIN32)
+    # Find windeployqt
+    get_target_property(_qmake_executable Qt6::qmake IMPORTED_LOCATION)
+    get_filename_component(_qt_bin_dir "${_qmake_executable}" DIRECTORY)
+    find_program(WINDEPLOYQT_EXECUTABLE windeployqt HINTS "${_qt_bin_dir}")
+
+    if(WINDEPLOYQT_EXECUTABLE)
+        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+            COMMAND "${WINDEPLOYQT_EXECUTABLE}"
+                --no-compiler-runtime
+                --no-translations
+                "$<TARGET_FILE:${PROJECT_NAME}>"
+            COMMENT "Running windeployqt to deploy Qt dependencies"
+        )
+    else()
+        message(WARNING "windeployqt not found. Qt dependencies will not be automatically deployed.")
+    endif()
+endif()

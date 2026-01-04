@@ -14,6 +14,14 @@
 #include <QFileInfo>
 #include <QProcess>
 #include <QStandardPaths>
+#include <QFile>
+#include <QTextStream>
+#include <QFileDialog>
+#include <QMessageBox>
+#include <QShortcut>
+#include <QWheelEvent>
+#include <QStringConverter>
+#include <QSaveFile>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -33,11 +41,19 @@ MainWindow::MainWindow(QWidget *parent)
     , m_markdownEditorWidget(nullptr)
     , m_markdownEditor(nullptr)
     , m_markdownPreview(nullptr)
+    , m_zoomResetButton(nullptr)
     , m_process(new QProcess(this))
     , m_processTimeout(new QTimer(this))
     , m_pythonRestartAttempts(0)
     , m_maxRestartAttempts(3)
     , m_restartTimer(new QTimer(this))
+    , m_currentFilePath("")
+    , m_isModified(false)
+    , m_currentEncoding(QStringConverter::Utf8)
+    , m_currentZoom(DEFAULT_ZOOM)
+    , m_previewBaseZoom(1.0)
+    , m_previewUpdateTimer(new QTimer(this))
+    , m_zoomSettingsSaveTimer(new QTimer(this))
 {
     // Initialize settings with config.ini in the application directory
     QString settingsPath = QDir(QCoreApplication::applicationDirPath()).filePath("config.ini");
@@ -51,11 +67,27 @@ MainWindow::MainWindow(QWidget *parent)
     // Configure restart timer
     m_restartTimer->setSingleShot(true);
     connect(m_restartTimer, &QTimer::timeout, this, &MainWindow::attemptPythonRestart);
+    
+    // Configure preview update timer for debouncing (200ms delay)
+    m_previewUpdateTimer->setSingleShot(true);
+    m_previewUpdateTimer->setInterval(200);
+    connect(m_previewUpdateTimer, &QTimer::timeout, this, [this]() {
+        QString markdownText = m_markdownEditor->toPlainText();
+        QString enhancedHtml = enhanceMarkdownPreview(markdownText);
+        m_markdownPreview->setHtml(enhancedHtml);
+    });
+    
+    // Configure zoom settings save timer for debouncing (500ms delay)
+    m_zoomSettingsSaveTimer->setSingleShot(true);
+    m_zoomSettingsSaveTimer->setInterval(500);
+    connect(m_zoomSettingsSaveTimer, &QTimer::timeout, this, [this]() {
+        m_settings->setValue("zoomLevel", m_currentZoom);
+    });
 
     setupUI();
     setWindowTitle("mdCoder");
     setWindowIcon(QIcon(":/icon/md_coder.ico"));
-    
+
     // Restore window geometry and state
     if (m_settings->contains("geometry")) {
         restoreGeometry(m_settings->value("geometry").toByteArray());
@@ -65,7 +97,13 @@ MainWindow::MainWindow(QWidget *parent)
     if (m_settings->contains("windowState")) {
         restoreState(m_settings->value("windowState").toByteArray());
     }
-    
+
+    // Restore zoom level
+    if (m_settings->contains("zoomLevel")) {
+        double savedZoom = m_settings->value("zoomLevel").toDouble();
+        setZoom(savedZoom);
+    }
+
     // Load weather for default city on startup
     QTimer::singleShot(500, this, &MainWindow::loadWeatherForDefaultCity);
 }
@@ -85,6 +123,12 @@ MainWindow::~MainWindow()
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
+    // Check for unsaved changes
+    if (!maybeSave()) {
+        event->ignore();
+        return;
+    }
+
     // Save window geometry and state
     m_settings->setValue("geometry", saveGeometry());
     m_settings->setValue("windowState", saveState());
@@ -196,7 +240,73 @@ void MainWindow::setupUI()
     m_contentLayout = new QVBoxLayout(m_contentArea);
     m_contentLayout->setContentsMargins(20, 20, 20, 20);
     m_contentLayout->setSpacing(15);
-    
+
+    // Create toolbar for file and zoom operations
+    QWidget *toolbarWidget = new QWidget(this);
+    QHBoxLayout *toolbarLayout = new QHBoxLayout(toolbarWidget);
+    toolbarLayout->setContentsMargins(0, 0, 0, 10);
+    toolbarLayout->setSpacing(8);
+
+    // File operation buttons - simplified icons
+    QPushButton *newButton = new QPushButton("💬", this);
+    newButton->setToolTip("New file (Ctrl+N)");
+    newButton->setFixedSize(35, 35);
+    connect(newButton, &QPushButton::clicked, this, [this]() {
+        if (maybeSave()) {
+            m_markdownEditor->clear();
+            m_currentFilePath.clear();
+            m_isModified = false;
+            updateWindowTitle();
+        }
+    });
+    toolbarLayout->addWidget(newButton);
+
+    QPushButton *openButton = new QPushButton("📂", this);
+    openButton->setToolTip("Open file (Ctrl+O)");
+    openButton->setFixedSize(35, 35);
+    connect(openButton, &QPushButton::clicked, this, &MainWindow::openFile);
+    toolbarLayout->addWidget(openButton);
+
+    QPushButton *saveButton = new QPushButton("✔️", this);
+    saveButton->setToolTip("Save file (Ctrl+S)");
+    saveButton->setFixedSize(35, 35);
+    connect(saveButton, &QPushButton::clicked, this, &MainWindow::saveFile);
+    toolbarLayout->addWidget(saveButton);
+
+    QPushButton *saveAsButton = new QPushButton("💾", this);
+    saveAsButton->setToolTip("Save as (Ctrl+Shift+S)");
+    saveAsButton->setFixedSize(35, 35);
+    connect(saveAsButton, &QPushButton::clicked, this, &MainWindow::saveFileAs);
+    toolbarLayout->addWidget(saveAsButton);
+
+    toolbarLayout->addSpacing(15);
+
+    // Zoom control buttons - compact design
+    QPushButton *zoomOutButton = new QPushButton("−", this);
+    zoomOutButton->setToolTip("Zoom out (Ctrl+-)");
+    zoomOutButton->setFixedSize(30, 30);
+    zoomOutButton->setStyleSheet("font-size: 18px; font-weight: bold;");
+    connect(zoomOutButton, &QPushButton::clicked, this, &MainWindow::zoomOut);
+    toolbarLayout->addWidget(zoomOutButton);
+
+    m_zoomResetButton = new QPushButton("100%", this);
+    m_zoomResetButton->setToolTip("Reset zoom (Ctrl+0)");
+    m_zoomResetButton->setFixedSize(55, 30);
+    m_zoomResetButton->setStyleSheet("font-size: 12px; font-weight: bold;");
+    connect(m_zoomResetButton, &QPushButton::clicked, this, &MainWindow::zoomReset);
+    toolbarLayout->addWidget(m_zoomResetButton);
+
+    QPushButton *zoomInButton = new QPushButton("+", this);
+    zoomInButton->setToolTip("Zoom in (Ctrl++)");
+    zoomInButton->setFixedSize(30, 30);
+    zoomInButton->setStyleSheet("font-size: 18px; font-weight: bold;");
+    connect(zoomInButton, &QPushButton::clicked, this, &MainWindow::zoomIn);
+    toolbarLayout->addWidget(zoomInButton);
+
+    toolbarLayout->addStretch();
+
+    m_contentLayout->addWidget(toolbarWidget);
+
     // Create tab widget
     m_tabWidget = new QTabWidget(this);
     
@@ -206,14 +316,36 @@ void MainWindow::setupUI()
     m_markdownPreview = new QTextBrowser(this);
     m_markdownPreview->setObjectName("markdownPreview");
     m_markdownPreview->setOpenExternalLinks(true);
-    
+
+    // Use QSplitter to allow resizing between editor and preview
+    QSplitter *splitter = new QSplitter(Qt::Horizontal, this);
+    splitter->addWidget(m_markdownEditorWidget);
+    splitter->addWidget(m_markdownPreview);
+
+    // Set initial sizes (50% each)
+    splitter->setSizes(QList<int>() << 500 << 500);
+
+    // Allow both widgets to be resized
+    splitter->setStretchFactor(0, 1);
+    splitter->setStretchFactor(1, 1);
+
+    // Style the splitter handle
+    splitter->setHandleWidth(3);
+    splitter->setStyleSheet(
+        "QSplitter::handle {"
+        "    background-color: #3d3d3d;"
+        "}"
+        "QSplitter::handle:hover {"
+        "    background-color: #00d4ff;"
+        "}"
+    );
+
     QWidget *notesWidget = new QWidget(this);
-    QHBoxLayout *notesLayout = new QHBoxLayout(notesWidget);
+    QVBoxLayout *notesLayout = new QVBoxLayout(notesWidget);
     notesLayout->setContentsMargins(0, 0, 0, 0);
-    notesLayout->setSpacing(10);
-    notesLayout->addWidget(m_markdownEditorWidget);
-    notesLayout->addWidget(m_markdownPreview);
-    
+    notesLayout->setSpacing(0);
+    notesLayout->addWidget(splitter);
+
     // Add tabs
     m_tabWidget->addTab(notesWidget, "📝 Notes");
     
@@ -226,9 +358,58 @@ void MainWindow::setupUI()
     // Connect signals
     connect(m_refreshButton, &QPushButton::clicked, this, &MainWindow::loadWeatherForDefaultCity);
     connect(m_themeButton, &QPushButton::clicked, this, &MainWindow::toggleTheme);
-    connect(m_defaultCityCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), 
+    connect(m_defaultCityCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &MainWindow::onDefaultCityChanged);
-    connect(m_markdownEditor, &QPlainTextEdit::textChanged, this, &MainWindow::onMarkdownTextChanged);
+    // Connect markdown editor to debounced preview update
+    connect(m_markdownEditor, &QPlainTextEdit::textChanged, this, [this]() {
+        m_previewUpdateTimer->start();  // Restart timer on each change (debouncing)
+    });
+
+    // Setup keyboard shortcuts for file operations
+    QShortcut *newShortcut = new QShortcut(QKeySequence("Ctrl+N"), this);
+    connect(newShortcut, &QShortcut::activated, this, [this]() {
+        if (maybeSave()) {
+            m_markdownEditor->clear();
+            m_currentFilePath.clear();
+            m_currentEncoding = QStringConverter::Utf8;  // Reset to UTF-8 for new files
+            m_fileBOM.clear();  // Clear BOM for new files
+            m_isModified = false;
+            updateWindowTitle();
+        }
+    });
+
+    QShortcut *openShortcut = new QShortcut(QKeySequence("Ctrl+O"), this);
+    connect(openShortcut, &QShortcut::activated, this, &MainWindow::openFile);
+
+    QShortcut *saveShortcut = new QShortcut(QKeySequence("Ctrl+S"), this);
+    connect(saveShortcut, &QShortcut::activated, this, &MainWindow::saveFile);
+
+    QShortcut *saveAsShortcut = new QShortcut(QKeySequence("Ctrl+Shift+S"), this);
+    connect(saveAsShortcut, &QShortcut::activated, this, &MainWindow::saveFileAs);
+
+    // Setup keyboard shortcuts for zoom operations
+    QShortcut *zoomInShortcut1 = new QShortcut(QKeySequence("Ctrl+="), this);
+    connect(zoomInShortcut1, &QShortcut::activated, this, &MainWindow::zoomIn);
+
+    QShortcut *zoomInShortcut2 = new QShortcut(QKeySequence("Ctrl++"), this);
+    connect(zoomInShortcut2, &QShortcut::activated, this, &MainWindow::zoomIn);
+
+    QShortcut *zoomOutShortcut = new QShortcut(QKeySequence("Ctrl+-"), this);
+    connect(zoomOutShortcut, &QShortcut::activated, this, &MainWindow::zoomOut);
+
+    QShortcut *zoomResetShortcut = new QShortcut(QKeySequence("Ctrl+0"), this);
+    connect(zoomResetShortcut, &QShortcut::activated, this, &MainWindow::zoomReset);
+
+    // Track text changes for modified flag
+    connect(m_markdownEditor, &QPlainTextEdit::textChanged, this, [this]() {
+        if (!m_isModified) {
+            m_isModified = true;
+            updateWindowTitle();
+        }
+    });
+
+    // Update window title initially
+    updateWindowTitle();
 }
 
 void MainWindow::applyTheme(const QString &themeName)
@@ -625,10 +806,10 @@ void MainWindow::onProcessTimeout()
 
 void MainWindow::onMarkdownTextChanged()
 {
-    // Get markdown text and enhance it for preview
-    QString markdownText = m_markdownEditor->toPlainText();
-    QString enhancedHtml = enhanceMarkdownPreview(markdownText);
-    m_markdownPreview->setHtml(enhancedHtml);
+    // Trigger debounced preview update
+    if (m_previewUpdateTimer) {
+        m_previewUpdateTimer->start();
+    }
 }
 
 QString MainWindow::enhanceMarkdownPreview(const QString &markdown)
@@ -913,4 +1094,447 @@ void MainWindow::attemptPythonRestart()
 bool MainWindow::isPythonProcessHealthy() const
 {
     return m_process && m_process->state() == QProcess::Running;
+}
+
+// ========== File Operations ==========
+
+void MainWindow::openFile()
+{
+    if (!maybeSave()) {
+        return;
+    }
+
+    QString fileName = QFileDialog::getOpenFileName(
+        this,
+        tr("Open Markdown File"),
+        QString(),
+        tr("Markdown Files (*.md *.markdown);;All Files (*)")
+    );
+
+    if (fileName.isEmpty()) {
+        return;
+    }
+
+    // File safety checks
+    QFileInfo fileInfo(fileName);
+    
+    // Check file size (10MB hard limit, warn for 1MB-10MB)
+    qint64 fileSize = fileInfo.size();
+    const qint64 WARN_SIZE = 1 * 1024 * 1024;  // 1MB
+    const qint64 MAX_SIZE = 20 * 1024 * 1024;  // 20MB
+    
+    if (fileSize > MAX_SIZE) {
+        QMessageBox::warning(this, tr("File Too Large"),
+                           tr("Cannot open file %1:\nFile size (%2 MB) exceeds maximum limit of 20 MB.")
+                           .arg(QDir::toNativeSeparators(fileName))
+                           .arg(fileSize / (1024.0 * 1024.0), 0, 'f', 2));
+        return;
+    }
+    
+    if (fileSize > WARN_SIZE) {
+        QMessageBox::StandardButton reply = QMessageBox::question(
+            this,
+            tr("Large File Warning"),
+            tr("File %1 is %2 MB.\nOpening large files may affect performance.\nContinue?")
+            .arg(QDir::toNativeSeparators(fileName))
+            .arg(fileSize / (1024.0 * 1024.0), 0, 'f', 2),
+            QMessageBox::Yes | QMessageBox::No
+        );
+        
+        if (reply != QMessageBox::Yes) {
+            return;
+        }
+    }
+    
+    // Check file type (warn for non-markdown files)
+    QString suffix = fileInfo.suffix().toLower();
+    if (suffix != "md" && suffix != "markdown") {
+        QMessageBox::StandardButton reply = QMessageBox::question(
+            this,
+            tr("Non-Markdown File"),
+            tr("File %1 does not appear to be a Markdown file.\nOpen anyway?")
+            .arg(QDir::toNativeSeparators(fileName)),
+            QMessageBox::Yes | QMessageBox::No
+        );
+        
+        if (reply != QMessageBox::Yes) {
+            return;
+        }
+    }
+
+    QFile file(fileName);
+    if (!file.open(QFile::ReadOnly | QFile::Text)) {
+        QMessageBox::warning(this, tr("Error"),
+                           tr("Cannot read file %1:\n%2.")
+                           .arg(QDir::toNativeSeparators(fileName))
+                           .arg(file.errorString()));
+        return;
+    }
+
+    // Read raw bytes to detect encoding
+    QByteArray rawData = file.readAll();
+    file.close();
+    
+    // Detect BOM and encoding
+    m_currentEncoding = QStringConverter::Utf8;  // Default
+    m_fileBOM.clear();  // Clear previous BOM
+    int bomSize = 0;
+    
+    if (rawData.size() >= 3 && 
+        (unsigned char)rawData[0] == 0xEF && 
+        (unsigned char)rawData[1] == 0xBB && 
+        (unsigned char)rawData[2] == 0xBF) {
+        // UTF-8 BOM
+        m_currentEncoding = QStringConverter::Utf8;
+        m_fileBOM = rawData.left(3);
+        bomSize = 3;
+    } else if (rawData.size() >= 2) {
+        if ((unsigned char)rawData[0] == 0xFF && (unsigned char)rawData[1] == 0xFE) {
+            // UTF-16 LE BOM
+            m_currentEncoding = QStringConverter::Utf16LE;
+            m_fileBOM = rawData.left(2);
+            bomSize = 2;
+        } else if ((unsigned char)rawData[0] == 0xFE && (unsigned char)rawData[1] == 0xFF) {
+            // UTF-16 BE BOM
+            m_currentEncoding = QStringConverter::Utf16BE;
+            m_fileBOM = rawData.left(2);
+            bomSize = 2;
+        }
+    }
+    
+    // Decode content
+    QStringDecoder decoder(m_currentEncoding);
+    QString content = decoder(rawData.mid(bomSize));
+    
+    // Check for decoding errors
+    if (decoder.hasError()) {
+        QMessageBox::warning(this, tr("Encoding Error"),
+                           tr("Failed to decode file %1 with detected encoding.\nTrying UTF-8...")
+                           .arg(QDir::toNativeSeparators(fileName)));
+        
+        // Fallback to UTF-8
+        m_currentEncoding = QStringConverter::Utf8;
+        QStringDecoder utf8Decoder(QStringConverter::Utf8);
+        content = utf8Decoder(rawData);
+        
+        if (utf8Decoder.hasError()) {
+            QMessageBox::critical(this, tr("Error"),
+                               tr("Cannot decode file %1.\nFile may be corrupted or use an unsupported encoding.")
+                               .arg(QDir::toNativeSeparators(fileName)));
+            return;
+        }
+    }
+
+    m_markdownEditor->setPlainText(content);
+    m_currentFilePath = fileName;
+    m_isModified = false;
+    updateWindowTitle();
+}
+
+void MainWindow::saveFile()
+{
+    if (m_currentFilePath.isEmpty()) {
+        saveFileAs();
+        return;
+    }
+
+    // Use QSaveFile for atomic writes
+    QSaveFile file(m_currentFilePath);
+    if (!file.open(QFile::WriteOnly | QFile::Text)) {
+        QMessageBox::warning(this, tr("Error"),
+                           tr("Cannot write file %1:\n%2.")
+                           .arg(QDir::toNativeSeparators(m_currentFilePath))
+                           .arg(file.errorString()));
+        return;
+    }
+
+    // Encode content using original encoding
+    QString content = m_markdownEditor->toPlainText();
+    QStringEncoder encoder(m_currentEncoding);
+    QByteArray encodedData = encoder(content);
+    
+    if (encoder.hasError()) {
+        QMessageBox::warning(this, tr("Encoding Error"),
+                           tr("Failed to encode file with original encoding.\nFalling back to UTF-8."));
+        m_currentEncoding = QStringConverter::Utf8;
+        QStringEncoder utf8Encoder(QStringConverter::Utf8);
+        encodedData = utf8Encoder(content);
+    }
+    
+    // Write BOM if present
+    if (!m_fileBOM.isEmpty()) {
+        if (file.write(m_fileBOM) == -1) {
+            QMessageBox::warning(this, tr("Error"),
+                               tr("Cannot write file %1:\n%2.")
+                               .arg(QDir::toNativeSeparators(m_currentFilePath))
+                               .arg(file.errorString()));
+            file.cancelWriting();
+            return;
+        }
+    }
+    
+    // Write data
+    if (file.write(encodedData) == -1) {
+        QMessageBox::warning(this, tr("Error"),
+                           tr("Cannot write file %1:\n%2.")
+                           .arg(QDir::toNativeSeparators(m_currentFilePath))
+                           .arg(file.errorString()));
+        file.cancelWriting();
+        return;
+    }
+    
+    // Commit the file (atomic operation)
+    if (!file.commit()) {
+        QMessageBox::warning(this, tr("Error"),
+                           tr("Cannot save file %1:\n%2.")
+                           .arg(QDir::toNativeSeparators(m_currentFilePath))
+                           .arg(file.errorString()));
+        return;
+    }
+
+    m_isModified = false;
+    updateWindowTitle();
+}
+
+void MainWindow::saveFileAs()
+{
+    QString fileName = QFileDialog::getSaveFileName(
+        this,
+        tr("Save Markdown File"),
+        m_currentFilePath.isEmpty() ? "untitled.md" : m_currentFilePath,
+        tr("Markdown Files (*.md *.markdown);;All Files (*)")
+    );
+
+    if (fileName.isEmpty()) {
+        return;
+    }
+
+    // Check if file exists and confirm overwrite
+    QFileInfo fileInfo(fileName);
+    if (fileInfo.exists() && fileInfo.filePath() != m_currentFilePath) {
+        QMessageBox::StandardButton reply = QMessageBox::question(
+            this,
+            tr("Overwrite File"),
+            tr("File %1 already exists.\nOverwrite?")
+            .arg(QDir::toNativeSeparators(fileName)),
+            QMessageBox::Yes | QMessageBox::No
+        );
+        
+        if (reply != QMessageBox::Yes) {
+            return;
+        }
+    }
+
+    // Save old path in case save fails
+    QString oldPath = m_currentFilePath;
+    bool oldModified = m_isModified;
+    
+    // Temporarily set new path for saveFile
+    m_currentFilePath = fileName;
+    
+    // Use QSaveFile for atomic writes
+    QSaveFile file(m_currentFilePath);
+    if (!file.open(QFile::WriteOnly | QFile::Text)) {
+        QMessageBox::warning(this, tr("Error"),
+                           tr("Cannot write file %1:\n%2.")
+                           .arg(QDir::toNativeSeparators(m_currentFilePath))
+                           .arg(file.errorString()));
+        // Restore old path on failure
+        m_currentFilePath = oldPath;
+        m_isModified = oldModified;
+        return;
+    }
+
+    // Encode content using original encoding
+    QString content = m_markdownEditor->toPlainText();
+    QStringEncoder encoder(m_currentEncoding);
+    QByteArray encodedData = encoder(content);
+    
+    if (encoder.hasError()) {
+        QMessageBox::warning(this, tr("Encoding Error"),
+                           tr("Failed to encode file with original encoding.\nFalling back to UTF-8."));
+        m_currentEncoding = QStringConverter::Utf8;
+        QStringEncoder utf8Encoder(QStringConverter::Utf8);
+        encodedData = utf8Encoder(content);
+    }
+    
+    // Write BOM if present
+    if (!m_fileBOM.isEmpty()) {
+        if (file.write(m_fileBOM) == -1) {
+            QMessageBox::warning(this, tr("Error"),
+                               tr("Cannot write file %1:\n%2.")
+                               .arg(QDir::toNativeSeparators(m_currentFilePath))
+                               .arg(file.errorString()));
+            file.cancelWriting();
+            // Restore old path on failure
+            m_currentFilePath = oldPath;
+            m_isModified = oldModified;
+            return;
+        }
+    }
+    
+    // Write data
+    if (file.write(encodedData) == -1) {
+        QMessageBox::warning(this, tr("Error"),
+                           tr("Cannot write file %1:\n%2.")
+                           .arg(QDir::toNativeSeparators(m_currentFilePath))
+                           .arg(file.errorString()));
+        file.cancelWriting();
+        // Restore old path on failure
+        m_currentFilePath = oldPath;
+        m_isModified = oldModified;
+        return;
+    }
+    
+    // Commit the file (atomic operation)
+    if (!file.commit()) {
+        QMessageBox::warning(this, tr("Error"),
+                           tr("Cannot save file %1:\n%2.")
+                           .arg(QDir::toNativeSeparators(m_currentFilePath))
+                           .arg(file.errorString()));
+        // Restore old path on failure
+        m_currentFilePath = oldPath;
+        m_isModified = oldModified;
+        return;
+    }
+
+    // Only update state after successful save
+    m_isModified = false;
+    updateWindowTitle();
+}
+
+bool MainWindow::maybeSave()
+{
+    if (!m_isModified) {
+        return true;
+    }
+
+    QMessageBox::StandardButton ret = QMessageBox::warning(
+        this,
+        tr("Unsaved Changes"),
+        tr("The document has been modified.\nDo you want to save your changes?"),
+        QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel
+    );
+
+    if (ret == QMessageBox::Save) {
+        saveFile();
+        return !m_isModified;  // Return true only if save succeeded
+    } else if (ret == QMessageBox::Cancel) {
+        return false;
+    }
+
+    return true;
+}
+
+void MainWindow::updateWindowTitle()
+{
+    QString title = "mdCoder";
+
+    if (!m_currentFilePath.isEmpty()) {
+        QFileInfo fileInfo(m_currentFilePath);
+        title = fileInfo.fileName();
+
+        if (m_isModified) {
+            title += " *";
+        }
+
+        title += " - mdCoder";
+    } else if (m_isModified) {
+        title = "* - mdCoder";
+    }
+
+    setWindowTitle(title);
+}
+
+// ========== Zoom Operations ==========
+
+void MainWindow::setZoom(double level)
+{
+    // Clamp zoom level to valid range
+    double newZoom = qBound(ZOOM_MIN, level, ZOOM_MAX);
+    
+    // Early return if zoom hasn't changed (avoid redundant operations)
+    if (qAbs(newZoom - m_currentZoom) < 0.001) {
+        return;
+    }
+
+    // Calculate the zoom change ratio
+    double zoomChange = newZoom / m_currentZoom;
+
+    // Update current zoom
+    m_currentZoom = newZoom;
+
+    // Save zoom level to settings (debounced)
+    m_zoomSettingsSaveTimer->start();
+
+    // Update zoom button text to show current percentage
+    if (m_zoomResetButton) {
+        int percentage = qRound(m_currentZoom * 100);
+        m_zoomResetButton->setText(QString("%1%").arg(percentage));
+    }
+
+    // Apply zoom to editor by scaling font
+    QFont editorFont = m_markdownEditor->font();
+    int baseFontSize = 14;  // Base font size from stylesheet
+    editorFont.setPointSizeF(baseFontSize * m_currentZoom);
+    m_markdownEditor->setFont(editorFont);
+
+    // Apply zoom to preview using QTextBrowser's built-in zoomIn/zoomOut
+    // QTextBrowser's zoom is multiplicative, so we apply the ratio
+    if (zoomChange > 1.0) {
+        // Zoom in - calculate how many steps
+        double factor = zoomChange;
+        while (factor > 1.01) {  // Small threshold to avoid floating point issues
+            m_markdownPreview->zoomIn(1);
+            factor /= 1.1;  // Each zoomIn step is approximately 1.1x
+        }
+    } else if (zoomChange < 1.0) {
+        // Zoom out - calculate how many steps
+        double factor = zoomChange;
+        while (factor < 0.99) {  // Small threshold to avoid floating point issues
+            m_markdownPreview->zoomOut(1);
+            factor *= 1.1;  // Each zoomOut step is approximately 0.9x (1/1.1)
+        }
+    }
+
+    // Note: Preview zoom is already applied via zoomIn/zoomOut calls above
+    // No need to regenerate HTML during zoom operations
+
+    qDebug() << "Zoom level set to:" << m_currentZoom << "(" << qRound(m_currentZoom * 100) << "%)";
+}
+
+void MainWindow::zoomIn()
+{
+    setZoom(m_currentZoom + ZOOM_STEP);
+}
+
+void MainWindow::zoomOut()
+{
+    setZoom(m_currentZoom - ZOOM_STEP);
+}
+
+void MainWindow::zoomReset()
+{
+    setZoom(DEFAULT_ZOOM);
+}
+
+void MainWindow::wheelEvent(QWheelEvent *event)
+{
+    // Check if Ctrl key is pressed
+    if (event->modifiers() & Qt::ControlModifier) {
+        // Get the scroll delta
+        int delta = event->angleDelta().y();
+
+        if (delta > 0) {
+            zoomIn();
+        } else if (delta < 0) {
+            zoomOut();
+        }
+
+        event->accept();
+        return;
+    }
+
+    // If Ctrl is not pressed, use default behavior
+    QMainWindow::wheelEvent(event);
 }
