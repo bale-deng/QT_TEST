@@ -31,10 +31,18 @@ jobs:
         arch: 'win64_mingw'
 
     - name: Set up MinGW
-      uses: egor-tensin/setup-gcc@v1
-      with:
-        version: 11.2.0
-        platform: x64
+      shell: pwsh
+      run: |
+        # Use the pre-installed MinGW64 in the MSYS2 directory on the runner
+        echo "C:\msys64\mingw64\bin" >> $env:GITHUB_PATH
+        # Ensure Ninja is also in path (it's usually in CMake's bin or pre-installed)
+        
+    - name: Verify Toolchain
+      shell: pwsh
+      run: |
+        g++ --version
+        ninja --version
+        cmake --version
 
     - name: Build Project
       shell: pwsh
