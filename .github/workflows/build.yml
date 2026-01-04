@@ -42,17 +42,24 @@ jobs:
 
     - name: Build Project
       shell: msys2 {0}
+      env:
+        QT_ROOT: ${{ env.QT_PATH }}
       run: |
-        # 将 Windows 风格的路径转换为 Unix 风格以便 MSYS2 使用
-        QT_PATH=$(cygpath -u "$QT_ROOT_DIR")
-        SRC_DIR=$(cygpath -u "$GITHUB_WORKSPACE")
+        # Ensure path is not empty
+        if [ -z "$QT_ROOT" ]; then
+          echo "Error: QT_PATH is empty. Using default cached path..."
+          QT_ROOT="/c/hostedtoolcache/windows/Qt/6.5.3/mingw_64"
+        fi
+        
+        QT_UNIX_PATH=$(cygpath -u "$QT_ROOT")
+        echo "Using Qt at: $QT_UNIX_PATH"
         
         mkdir -p build
         cd build
         
         cmake .. -G "Ninja" \
           -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_PREFIX_PATH="$QT_PATH"
+          -DCMAKE_PREFIX_PATH="$QT_UNIX_PATH"
           
         cmake --build . --parallel
 
