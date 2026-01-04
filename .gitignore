@@ -42,5 +42,9 @@ qrc_*.cpp
 Thumbs.db
 desktop.ini
 
+# Agent specific directories
+.claude/
+.serena/
+
 nul
 NUL

@@ -1,0 +1,58 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v3
+      with:
+        version: '6.5.3'
+        host: 'windows'
+        target: 'desktop'
+        arch: 'win64_mingw'
+        dir: '${{ github.workspace }}/qt'
+
+    - name: Build Project
+      shell: pwsh
+      run: |
+        mkdir build
+        cd build
+        cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
+        cmake --build . --parallel
+
+    - name: Package Release
+      shell: pwsh
+      run: |
+        # Create release structure
+        mkdir release_pkg
+        cp build/bin/WeatherApp.exe release_pkg/
+        cp -r python release_pkg/
+        
+        # Deployment (using windeployqt provided by action)
+        windeployqt --no-compiler-runtime --no-translations release_pkg/WeatherApp.exe
+        
+        # Create dummy info file
+        echo "Build Date: $(Get-Date)" > release_pkg/VERSION.txt
+        echo "Version: 1.1.00" >> release_pkg/VERSION.txt
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: WeatherApp-Windows
+        path: release_pkg/
