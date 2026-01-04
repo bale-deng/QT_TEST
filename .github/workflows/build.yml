@@ -39,7 +39,8 @@ jobs:
       shell: pwsh
       run: |
         # 1. Clean PATH to remove sh.exe (MinGW conflict)
-        $env:PATH = $env:PATH -split ';' | Where-Object { $_ -notlike '*\Git\usr\bin*' } -join ';'
+        $pathArray = $env:PATH -split ';' | Where-Object { $_ -notlike '*\Git\usr\bin*' }
+        $env:PATH = $pathArray -join ';'
         $mingwPath = "C:\msys64\mingw64\bin"
         $env:PATH = "$mingwPath;$env:PATH"
         
