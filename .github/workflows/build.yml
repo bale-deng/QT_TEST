@@ -30,37 +30,31 @@ jobs:
         version: '6.5.3'
         arch: 'win64_mingw'
 
-    - name: Set up Ninja
-      uses: ashutoshvarma/setup-ninja@master
+    - name: Set up MSYS2
+      uses: msys2/setup-msys2@v2
       with:
-        version: 1.11.0
+        msystem: MINGW64
+        update: true
+        install: >-
+          mingw-w64-x86_64-toolchain
+          mingw-w64-x86_64-ninja
+          mingw-w64-x86_64-cmake
 
     - name: Build Project
-      shell: pwsh
+      shell: msys2 {0}
       run: |
-        # 1. Clean PATH to remove sh.exe (MinGW conflict)
-        $pathArray = $env:PATH -split ';' | Where-Object { $_ -notlike '*\Git\usr\bin*' }
-        $env:PATH = $pathArray -join ';'
-        $mingwPath = "C:\msys64\mingw64\bin"
-        $env:PATH = "$mingwPath;$env:PATH"
+        # 将 Windows 风格的路径转换为 Unix 风格以便 MSYS2 使用
+        QT_PATH=$(cygpath -u "$QT_ROOT_DIR")
+        SRC_DIR=$(cygpath -u "$GITHUB_WORKSPACE")
         
-        # 2. Debug environment
-        Write-Host "Qt Path: $env:QT_PATH"
+        mkdir -p build
+        cd build
         
-        # 3. Build using absolute paths and explicit compiler locations
-        $srcDir = "${{ github.workspace }}"
-        $buildDir = "$srcDir/build"
-        
-        cmake -G "Ninja" `
-          -B "$buildDir" `
-          -S "$srcDir" `
-          -DCMAKE_BUILD_TYPE=Release `
-          -DCMAKE_PREFIX_PATH="$env:QT_PATH" `
-          -DCMAKE_CXX_COMPILER="$mingwPath/g++.exe" `
-          -DCMAKE_C_COMPILER="$mingwPath/gcc.exe" `
-          -DCMAKE_MAKE_PROGRAM="ninja.exe"
+        cmake .. -G "Ninja" \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_PREFIX_PATH="$QT_PATH"
           
-        cmake --build "$buildDir" --parallel
+        cmake --build . --parallel
 
     - name: Package Release
       shell: pwsh
@@ -71,10 +65,10 @@ jobs:
         cp build/bin/WeatherApp.exe release_pkg/
         
         # 2. Deploy Qt dependencies
-        $qtBin = "$env:QT_PATH/bin"
+        $qtBin = "$env:QT_ROOT_DIR/bin"
         & "$qtBin/windeployqt.exe" --no-translations --no-system-d3d-compiler --no-opengl-sw --no-compiler-runtime release_pkg/WeatherApp.exe
         
-        # 3. Copy MinGW runtime DLLs
+        # 3. Copy MinGW runtime DLLs from MSYS2
         $mingwBin = "C:\msys64\mingw64\bin"
         cp "$mingwBin/libgcc_s_seh-1.dll" release_pkg/
         cp "$mingwBin/libstdc++-6.dll" release_pkg/
