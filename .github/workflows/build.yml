@@ -38,19 +38,16 @@ jobs:
     - name: Build Project
       shell: pwsh
       run: |
-        # 核心修复：从 PATH 中移除包含 sh.exe 的路径，防止干扰 MinGW
+        # Remove sh.exe from PATH
         $env:PATH = $env:PATH -split ';' | Where-Object { $_ -notlike '*\Git\usr\bin*' } -join ';'
-        
-        # 添加 MinGW 路径
         $mingwPath = "C:\msys64\mingw64\bin"
         $env:PATH = "$mingwPath;$env:PATH"
         
-        # 验证工具
-        g++ --version
-        ninja --version
-        
-        mkdir build
+        # Create and enter build directory
+        if (!(Test-Path build)) { New-Item -ItemType Directory -Path build }
         cd build
+        
+        # Explicitly point to the CMakeLists.txt in the workspace root
         cmake .. -G "Ninja" `
           -DCMAKE_BUILD_TYPE=Release `
           -DCMAKE_PREFIX_PATH="$env:QT_PATH" `
